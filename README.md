@@ -87,6 +87,30 @@ Un franchisé ne voit et ne modifie que le stock de **son** restaurant (déduit 
 
 ---
 
+## Dépendances
+
+> **Légende** — 🔴 indispensable (le service ne démarre pas ou ne sert à rien) ·
+> 🟠 nécessaire à une fonctionnalité (le reste continue de marcher) ·
+> 🟡 optionnelle (dégradation silencieuse, journalisée)
+
+| Dépendance | Type | Conséquence si absente |
+|---|---|---|
+| **PostgreSQL** (`stock-db`) | 🔴 | Le service ne démarre pas |
+| **auth-service** | 🟠 | Aucun appel réseau, mais toutes les routes exigent un jeton valide |
+
+**Aucun appel sortant.** `stock-service` est totalement autonome : il ne dépend
+d'aucun autre service Good Food au moment de l'exécution.
+
+### Qui dépend de ce service
+
+| Service | Type | Conséquence si `stock-service` est arrêté |
+|---|---|---|
+| `web-app` | 🟠 | Les pages **Stocks** et **Réapprovisionnement** du portail sont cassées, ainsi que deux indicateurs du tableau de bord. Le reste de l'application fonctionne. |
+
+Aucun autre service ne l'appelle.
+
+---
+
 ## Lancement
 
 ```bash
