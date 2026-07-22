@@ -1,0 +1,43 @@
+services:
+  stock-service:
+    build: .
+    container_name: stock-service
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    env_file:
+      - .env
+    environment:
+      ConnectionStrings__StockDb: Host=stock-db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+    depends_on:
+      stock-db:
+        condition: service_healthy
+    networks:
+      - microservices-net
+
+  stock-db:
+    image: postgres:17-alpine
+    container_name: stock-postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "5434:5432" # 5434 outside to avoid clashing with other local Postgres
+    volumes:
+      - stock_data:/var/lib/postgresql/data
+    networks:
+      - microservices-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+# Shared external network so services can reach each other:
+#   docker network create microservices-net   (once)
+networks:
+  microservices-net:
+    external: true
+
+volumes:
+  stock_data:
