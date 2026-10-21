@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Moq;
+using Stock.Application.Common;
 using Stock.Application.Orders;
 using Stock.Domain.Entities;
 using Stock.Domain.Errors;
@@ -161,6 +162,25 @@ public class OrderStockHandlersTests
         result.Shortfalls.Should().ContainSingle().Which.Should().Be(new ShortfallDto(a.Id, 2));
         a.QuantityOnHand.Should().Be(0);
         stored!.Lines.Should().ContainSingle().Which.Quantity.Should().Be(3);
+    }
+
+    [Fact]
+    public async Task Consume_with_shortfall_exposes_the_marker_in_the_movement_dto()
+    {
+        var a = new StockItem(TenantId, "A", "kg", 3, 1, 50);
+        var b = new StockItem(TenantId, "B", "kg", 10, 1, 50);
+        SetupItems(a, b);
+        var movements = new List<StockMovement>();
+        _stocks.Setup(s => s.AddMovementAsync(It.IsAny<StockMovement>(), It.IsAny<CancellationToken>()))
+            .Callback<StockMovement, CancellationToken>((m, _) => movements.Add(m));
+
+        await ConsumeHandler.Handle(new ConsumeOrderCommand(Guid.NewGuid(), TenantId, [new(a.Id, 5), new(b.Id, 4)]), default);
+
+        var shortDto = movements.Single(m => m.StockItemId == a.Id).ToDto();
+        shortDto.Type.Should().Be("OUT");
+        shortDto.Quantity.Should().Be(3);
+        shortDto.Shortfall.Should().Be(2);
+        movements.Single(m => m.StockItemId == b.Id).ToDto().Shortfall.Should().Be(0);
     }
 
     [Theory]
