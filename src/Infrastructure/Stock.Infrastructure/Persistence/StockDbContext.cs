@@ -11,6 +11,8 @@ public sealed class StockDbContext(DbContextOptions<StockDbContext> options) : D
 
     public DbSet<ReplenishmentRequest> ReplenishmentRequests => Set<ReplenishmentRequest>();
 
+    public DbSet<OrderConsumption> OrderConsumptions => Set<OrderConsumption>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<StockItem>(e =>
@@ -22,6 +24,8 @@ public sealed class StockDbContext(DbContextOptions<StockDbContext> options) : D
             e.Property(x => x.QuantityOnHand).HasPrecision(12, 3);
             e.Property(x => x.ThresholdMin).HasPrecision(12, 3);
             e.Property(x => x.ThresholdMax).HasPrecision(12, 3);
+            // Optimistic concurrency via PostgreSQL's xmin system column (no real column added).
+            e.Property<uint>("xmin").HasColumnType("xid").ValueGeneratedOnAddOrUpdate().IsConcurrencyToken();
             e.HasIndex(x => x.TenantId);
             e.HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
             e.HasMany(x => x.Movements)
@@ -38,6 +42,7 @@ public sealed class StockDbContext(DbContextOptions<StockDbContext> options) : D
             e.HasKey(x => x.Id);
             e.Property(x => x.Type).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.Quantity).HasPrecision(12, 3);
+            e.Property(x => x.Shortfall).HasPrecision(12, 3);
             e.Property(x => x.Reason).HasMaxLength(500);
             e.Property(x => x.CreatedBy).HasMaxLength(100);
             e.HasIndex(x => x.StockItemId);
@@ -52,6 +57,25 @@ public sealed class StockDbContext(DbContextOptions<StockDbContext> options) : D
             e.Property(x => x.RequestedBy).HasMaxLength(100);
             e.HasIndex(x => x.TenantId);
             e.HasIndex(x => new { x.StockItemId, x.Status });
+        });
+
+        modelBuilder.Entity<OrderConsumption>(e =>
+        {
+            e.ToTable("order_consumptions");
+            e.HasKey(x => x.OrderId);
+            e.Property(x => x.OrderId).ValueGeneratedNever();
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.CreatedAt);
+            e.HasIndex(x => x.TenantId);
+            e.OwnsMany(x => x.Lines, l =>
+            {
+                l.ToTable("order_consumption_lines");
+                l.WithOwner().HasForeignKey("OrderId");
+                l.Property<int>("Id").ValueGeneratedOnAdd();
+                l.HasKey("Id");
+                l.Property(x => x.Quantity).HasPrecision(12, 3);
+            });
+            e.Navigation(x => x.Lines).UsePropertyAccessMode(PropertyAccessMode.Field);
         });
     }
 }

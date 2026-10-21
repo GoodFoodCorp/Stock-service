@@ -20,7 +20,10 @@ public sealed record StockMovementDto(
     decimal Quantity,
     string Reason,
     DateTimeOffset CreatedAt,
-    string CreatedBy);
+    string CreatedBy,
+    // Quantity an order consumption could not take because the stock was
+    // insufficient (the "insufficient" marker of an OUT); 0 otherwise.
+    decimal Shortfall);
 
 public sealed record ReplenishmentRequestDto(
     Guid Id,
@@ -46,7 +49,7 @@ public static class DtoMapping
 
     public static StockMovementDto ToDto(this StockMovement m) => new(
         m.Id, m.StockItemId, m.Type.ToString().ToUpperInvariant(), m.Quantity,
-        m.Reason, m.CreatedAt, m.CreatedBy);
+        m.Reason, m.CreatedAt, m.CreatedBy, m.Shortfall);
 
     public static ReplenishmentRequestDto ToDto(this ReplenishmentRequest r) => new(
         r.Id, r.TenantId, r.StockItemId, r.QuantityRequested,

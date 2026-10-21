@@ -12,12 +12,13 @@ public sealed class StockMovement
 {
     private StockMovement() { } // EF Core
 
-    internal StockMovement(Guid stockItemId, MovementType type, decimal quantity, string reason, string createdBy)
+    internal StockMovement(Guid stockItemId, MovementType type, decimal quantity, string reason, string createdBy, decimal shortfall = 0)
     {
         Id = Guid.NewGuid();
         StockItemId = stockItemId;
         Type = type;
         Quantity = quantity;
+        Shortfall = shortfall;
         Reason = reason;
         CreatedBy = createdBy;
         CreatedAt = DateTimeOffset.UtcNow;
@@ -31,6 +32,9 @@ public sealed class StockMovement
 
     /// <summary>Moved quantity; for Adjustment this is the new absolute quantity.</summary>
     public decimal Quantity { get; private set; }
+
+    /// <summary>Requested quantity that could not be served (order consumption on insufficient stock); 0 otherwise.</summary>
+    public decimal Shortfall { get; private set; }
 
     public string Reason { get; private set; } = string.Empty;
 

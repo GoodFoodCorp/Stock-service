@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Stock.Domain.Entities;
+using Stock.Domain.Errors;
 using Stock.Domain.Repositories;
 
 namespace Stock.Infrastructure.Persistence;
@@ -9,6 +11,12 @@ public sealed class StockItemRepository(StockDbContext db) : IStockItemRepositor
     public Task<StockItem?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         db.StockItems.Include(i => i.Movements)
             .FirstOrDefaultAsync(i => i.Id == id, ct);
+
+    public async Task<IReadOnlyList<StockItem>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
+    {
+        var idList = ids.Distinct().ToList();
+        return await db.StockItems.Where(i => idList.Contains(i.Id)).ToListAsync(ct);
+    }
 
     public async Task<IReadOnlyList<StockItem>> ListByTenantAsync(Guid tenantId, CancellationToken ct = default) =>
         await db.StockItems
@@ -53,7 +61,30 @@ public sealed class ReplenishmentRequestRepository(StockDbContext db) : IRepleni
         await db.ReplenishmentRequests.AddAsync(request, ct);
 }
 
+public sealed class OrderConsumptionRepository(StockDbContext db) : IOrderConsumptionRepository
+{
+    public Task<OrderConsumption?> GetByOrderIdAsync(Guid orderId, CancellationToken ct = default) =>
+        db.OrderConsumptions.FirstOrDefaultAsync(c => c.OrderId == orderId, ct);
+
+    public async Task AddAsync(OrderConsumption consumption, CancellationToken ct = default) =>
+        await db.OrderConsumptions.AddAsync(consumption, ct);
+}
+
 public sealed class UnitOfWork(StockDbContext db) : IUnitOfWork
 {
-    public Task SaveChangesAsync(CancellationToken ct = default) => db.SaveChangesAsync(ct);
+    public async Task SaveChangesAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw DomainException.Conflict("The stock was modified concurrently, please retry.");
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            throw DomainException.Conflict("A concurrent request is already processing this resource, please retry.");
+        }
+    }
 }

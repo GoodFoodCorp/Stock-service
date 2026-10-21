@@ -16,6 +16,7 @@ public static class DependencyInjection
         services.AddDbContext<StockDbContext>(o => o.UseNpgsql(connectionString));
         services.AddScoped<IStockItemRepository, StockItemRepository>();
         services.AddScoped<IReplenishmentRequestRepository, ReplenishmentRequestRepository>();
+        services.AddScoped<IOrderConsumptionRepository, OrderConsumptionRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         return services;
     }
