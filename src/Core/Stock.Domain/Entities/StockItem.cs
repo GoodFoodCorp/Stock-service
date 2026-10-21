@@ -135,6 +135,43 @@ public sealed class StockItem
 
         return ApplyMovement(MovementType.In, request.QuantityRequested, "Replenishment received", receivedBy).Movement;
     }
+
+    /// <summary>
+    /// Consumes stock for a confirmed order. Unlike an OUT movement it never fails
+    /// on insufficient stock: it removes what is available (clamped at zero) and
+    /// records the unserved quantity as a shortfall on the movement.
+    /// </summary>
+    public OrderConsumeResult ConsumeForOrder(decimal quantity, Guid orderId, string createdBy)
+    {
+        if (quantity <= 0)
+        {
+            throw DomainException.Validation("Consumed quantity must be greater than zero.");
+        }
+
+        var removed = Math.Min(quantity, QuantityOnHand);
+        var shortfall = quantity - removed;
+
+        QuantityOnHand -= removed;
+        UpdatedAt = DateTimeOffset.UtcNow;
+
+        var movement = new StockMovement(Id, MovementType.Out, removed, $"Order {orderId}", createdBy, shortfall);
+        _movements.Add(movement);
+
+        ReplenishmentRequest? suggestion = null;
+        if (IsBelowMinimum)
+        {
+            suggestion = new ReplenishmentRequest(
+                TenantId, Id, ThresholdMax - QuantityOnHand, createdBy, isAutomatic: true);
+        }
+
+        return new OrderConsumeResult(movement, suggestion, removed, shortfall);
+    }
+
+    /// <summary>Puts back the quantity actually consumed by a cancelled order.</summary>
+    public StockMovement RestoreFromOrder(decimal quantity, Guid orderId, string createdBy) =>
+        ApplyMovement(MovementType.In, quantity, $"Order {orderId} cancelled", createdBy).Movement;
 }
 
 public sealed record MovementResult(StockMovement Movement, ReplenishmentRequest? AutoReplenishment);
+
+public sealed record OrderConsumeResult(StockMovement Movement, ReplenishmentRequest? AutoReplenishment, decimal Removed, decimal Shortfall);

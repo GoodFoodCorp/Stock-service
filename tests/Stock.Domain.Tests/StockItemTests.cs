@@ -124,4 +124,104 @@ public class StockItemTests
         act.Should().Throw<DomainException>()
             .Which.Code.Should().Be(DomainErrorCode.Conflict);
     }
+
+    [Fact]
+    public void ConsumeForOrder_removes_requested_quantity_when_enough()
+    {
+        var item = NewItem(onHand: 10, min: 2);
+        var orderId = Guid.NewGuid();
+
+        var result = item.ConsumeForOrder(3, orderId, "order-service");
+
+        item.QuantityOnHand.Should().Be(7);
+        result.Movement.Type.Should().Be(MovementType.Out);
+        result.Movement.Quantity.Should().Be(3);
+        result.Movement.Shortfall.Should().Be(0);
+        result.Movement.Reason.Should().Contain(orderId.ToString());
+        result.Removed.Should().Be(3);
+        result.Shortfall.Should().Be(0);
+        result.AutoReplenishment.Should().BeNull();
+    }
+
+    [Fact]
+    public void ConsumeForOrder_clamps_to_zero_and_records_shortfall()
+    {
+        var item = NewItem(onHand: 3, min: 2, max: 50);
+
+        var result = item.ConsumeForOrder(5, Guid.NewGuid(), "order-service");
+
+        item.QuantityOnHand.Should().Be(0);
+        result.Removed.Should().Be(3);
+        result.Shortfall.Should().Be(2);
+        result.Movement.Quantity.Should().Be(3);
+        result.Movement.Shortfall.Should().Be(2);
+        result.AutoReplenishment.Should().NotBeNull();
+        result.AutoReplenishment!.QuantityRequested.Should().Be(50);
+    }
+
+    [Fact]
+    public void ConsumeForOrder_with_nothing_on_hand_records_zero_quantity_movement()
+    {
+        var item = NewItem(onHand: 0);
+
+        var result = item.ConsumeForOrder(4, Guid.NewGuid(), "order-service");
+
+        result.Removed.Should().Be(0);
+        result.Shortfall.Should().Be(4);
+        item.QuantityOnHand.Should().Be(0);
+        item.Movements.Should().ContainSingle().Which.Should().BeSameAs(result.Movement);
+    }
+
+    [Fact]
+    public void ConsumeForOrder_crossing_minimum_creates_automatic_replenishment()
+    {
+        var item = NewItem(onHand: 12, min: 10, max: 50);
+
+        var result = item.ConsumeForOrder(5, Guid.NewGuid(), "order-service");
+
+        result.AutoReplenishment.Should().NotBeNull();
+        result.AutoReplenishment!.QuantityRequested.Should().Be(43);
+        result.AutoReplenishment.IsAutomatic.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void ConsumeForOrder_rejects_non_positive_quantity(decimal quantity)
+    {
+        var item = NewItem(onHand: 10);
+
+        var act = () => item.ConsumeForOrder(quantity, Guid.NewGuid(), "order-service");
+
+        act.Should().Throw<DomainException>()
+            .Which.Code.Should().Be(DomainErrorCode.Validation);
+        item.QuantityOnHand.Should().Be(10);
+    }
+
+    [Fact]
+    public void RestoreFromOrder_adds_quantity_as_In_movement()
+    {
+        var item = NewItem(onHand: 2);
+        var orderId = Guid.NewGuid();
+
+        var movement = item.RestoreFromOrder(3, orderId, "order-service");
+
+        item.QuantityOnHand.Should().Be(5);
+        movement.Type.Should().Be(MovementType.In);
+        movement.Quantity.Should().Be(3);
+        movement.Reason.Should().Contain(orderId.ToString());
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-2)]
+    public void RestoreFromOrder_rejects_non_positive_quantity(decimal quantity)
+    {
+        var item = NewItem(onHand: 2);
+
+        var act = () => item.RestoreFromOrder(quantity, Guid.NewGuid(), "order-service");
+
+        act.Should().Throw<DomainException>()
+            .Which.Code.Should().Be(DomainErrorCode.Validation);
+    }
 }
