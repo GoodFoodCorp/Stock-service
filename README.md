@@ -98,7 +98,10 @@ que `/api/...` : elles restent internes au cluster). Elles exigent l'en-tête
 | POST | `/internal/stocks/restore` | `{orderId, tenantId}` | `{status: RESTORED \| ALREADY_RESTORED \| CANCELLED_BEFORE_CONSUME}` |
 
 `consume` est idempotent par `orderId` ; `restore` remet exactement les quantités
-réellement retirées (une pénurie partielle n'est pas sur-restituée).
+réellement retirées (une pénurie partielle n'est pas sur-restituée). Un
+mouvement `OUT` issu d'une commande à court d'ingrédient est marqué
+« insuffisant » : son champ `shortfall` (exposé dans l'historique des
+mouvements, `GET /api/stocks/{id}`) donne la quantité manquante (0 sinon).
 
 ---
 
@@ -121,9 +124,9 @@ d'aucun autre service Good Food au moment de l'exécution.
 | Service | Type | Conséquence si `stock-service` est arrêté |
 |---|---|---|
 | `web-app` | 🟠 | Les pages **Stocks** et **Réapprovisionnement** du portail sont cassées, ainsi que deux indicateurs du tableau de bord. Le reste de l'application fonctionne. |
-| `order-service` | 🟠 | Via `/internal/stocks/*` : le contrôle de disponibilité, la consommation à la confirmation et la remise en stock à l'annulation des commandes comportant des plats avec recette sont impossibles. |
+| `order-service` | 🟠 | Appelle `/internal/stocks/check`, `consume` et `restore` (clé `X-Service-Key`). Les **commandes comportant un plat avec recette sont refusées** (`503`) faute de pouvoir vérifier le stock ; les commandes sans plat suivi passent. La consommation à la confirmation et la remise en stock à l'annulation sont différées puis rejouées par le worker d'`order-service` au retour du service. |
 
-Aucun autre service ne l'appelle.
+Seuls `web-app` (routes `/api`) et `order-service` (routes `/internal`) l'appellent.
 
 ---
 
@@ -152,11 +155,12 @@ Les migrations EF Core sont appliquées automatiquement au démarrage.
 ## Tests
 
 ```bash
-DOTNET_ROLL_FORWARD=LatestMajor dotnet test StockService.slnx   # 32 tests
+DOTNET_ROLL_FORWARD=LatestMajor dotnet test StockService.slnx   # 67 tests
 ```
 
 Couvrent les mouvements, la règle de réapprovisionnement automatique, le cycle de
-vie des demandes et l'isolation multi-tenant.
+vie des demandes, la consommation et la restitution par commande (idempotence,
+pénurie partielle, annulation avant consommation) et l'isolation multi-tenant.
 
 > ⚠️ **Aucune CI n'est configurée sur ce projet** — les tests doivent être lancés
 > manuellement.
