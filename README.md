@@ -85,6 +85,21 @@ Un franchisé ne voit et ne modifie que le stock de **son** restaurant (déduit 
 | PATCH | `/api/replenishment-requests/{id}/status` | `admin` (décision siège) |
 | GET | `/healthz`, `/readyz` | public (sondes) |
 
+### Endpoints internes (appelés par `order-service`)
+
+Routes sous `/internal/stocks/...`, **jamais** sous `/api/...` (l'ingress ne route
+que `/api/...` : elles restent internes au cluster). Elles exigent l'en-tête
+`X-Service-Key` égal à `SERVICE_API_KEY` ; sinon `401` (un JWT utilisateur ne suffit pas).
+
+| Méthode | Route | Corps | Réponse 200 |
+|---|---|---|---|
+| POST | `/internal/stocks/check` | `{tenantId, lines:[{stockItemId, quantity}]}` | `{available, missing:[{stockItemId, name, unit, required, onHand}]}` |
+| POST | `/internal/stocks/consume` | `{orderId, tenantId, lines:[…]}` | `{status: APPLIED \| ALREADY_APPLIED \| SKIPPED_CANCELLED, shortfalls:[{stockItemId, shortfall}]}` |
+| POST | `/internal/stocks/restore` | `{orderId, tenantId}` | `{status: RESTORED \| ALREADY_RESTORED \| CANCELLED_BEFORE_CONSUME}` |
+
+`consume` est idempotent par `orderId` ; `restore` remet exactement les quantités
+réellement retirées (une pénurie partielle n'est pas sur-restituée).
+
 ---
 
 ## Dépendances
@@ -96,7 +111,7 @@ Un franchisé ne voit et ne modifie que le stock de **son** restaurant (déduit 
 | Dépendance | Type | Conséquence si absente |
 |---|---|---|
 | **PostgreSQL** (`stock-db`) | 🔴 | Le service ne démarre pas |
-| **auth-service** | 🟠 | Aucun appel réseau, mais toutes les routes exigent un jeton valide |
+| **auth-service** | 🟠 | Aucun appel réseau, mais toutes les routes `/api` exigent un jeton valide |
 
 **Aucun appel sortant.** `stock-service` est totalement autonome : il ne dépend
 d'aucun autre service Good Food au moment de l'exécution.
@@ -106,6 +121,7 @@ d'aucun autre service Good Food au moment de l'exécution.
 | Service | Type | Conséquence si `stock-service` est arrêté |
 |---|---|---|
 | `web-app` | 🟠 | Les pages **Stocks** et **Réapprovisionnement** du portail sont cassées, ainsi que deux indicateurs du tableau de bord. Le reste de l'application fonctionne. |
+| `order-service` | 🟠 | Via `/internal/stocks/*` : le contrôle de disponibilité, la consommation à la confirmation et la remise en stock à l'annulation des commandes comportant des plats avec recette sont impossibles. |
 
 Aucun autre service ne l'appelle.
 
@@ -115,7 +131,7 @@ Aucun autre service ne l'appelle.
 
 ```bash
 docker network create microservices-net   # une seule fois, partagé
-cp .env.example .env                      # renseigner POSTGRES_PASSWORD et JWT_SECRET
+cp .env.example .env                      # renseigner POSTGRES_PASSWORD, JWT_SECRET et SERVICE_API_KEY
 docker compose up -d --build
 ```
 
@@ -128,6 +144,7 @@ Les migrations EF Core sont appliquées automatiquement au démarrage.
 |---|---|---|
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | oui | Base dédiée `stock-db` |
 | `JWT_SECRET` | oui | Secret HS256 partagé avec `auth-service` |
+| `SERVICE_API_KEY` | oui (démarrage refusé sinon) | Clé des appels internes (`X-Service-Key`), identique à celle d'`order-service` |
 | `ConnectionStrings__StockDb` | hors Docker | Chaîne de connexion Npgsql |
 
 ---

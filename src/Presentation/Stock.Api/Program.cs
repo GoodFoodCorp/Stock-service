@@ -27,6 +27,10 @@ builder.Services.AddControllers();
 var jwtSecret = builder.Configuration["JWT_SECRET"]
     ?? throw new InvalidOperationException("JWT_SECRET is required.");
 
+// Shared secret for service-to-service calls on /internal/... (X-Service-Key header).
+_ = builder.Configuration["SERVICE_API_KEY"]
+    ?? throw new InvalidOperationException("SERVICE_API_KEY is required.");
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
