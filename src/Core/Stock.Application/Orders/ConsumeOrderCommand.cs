@@ -42,6 +42,11 @@ public sealed class ConsumeOrderHandler(
         var existing = await consumptions.GetByOrderIdAsync(cmd.OrderId, ct);
         if (existing is not null)
         {
+            if (existing.TenantId != cmd.TenantId)
+            {
+                throw DomainException.NotFound("Order consumption not found.");
+            }
+
             return new ConsumeResultDto(
                 existing.Status == OrderConsumptionStatus.Cancelled ? "SKIPPED_CANCELLED" : "ALREADY_APPLIED",
                 []);

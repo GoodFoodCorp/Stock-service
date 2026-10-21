@@ -300,4 +300,59 @@ public class OrderStockHandlersTests
         restored.Status.Should().Be("RESTORED");
         a.QuantityOnHand.Should().Be(3);
     }
+
+    // ---- Tenant isolation ----
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Consume_record_of_another_tenant_throws_NotFound(bool cancelled)
+    {
+        var a = new StockItem(TenantId, "A", "kg", 10, 1, 50);
+        SetupItems(a);
+        var orderId = Guid.NewGuid();
+        var other = Guid.NewGuid();
+        _consumptions.Setup(c => c.GetByOrderIdAsync(orderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(cancelled ? OrderConsumption.CancelledBeforeConsume(orderId, other)
+                                    : OrderConsumption.Applied(orderId, other, [new(a.Id, 1)]));
+
+        var act = () => ConsumeHandler.Handle(new ConsumeOrderCommand(orderId, TenantId, [new(a.Id, 4)]), default);
+
+        (await act.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be(DomainErrorCode.NotFound);
+        _uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Restore_record_of_another_tenant_throws_NotFound_and_changes_nothing()
+    {
+        var a = new StockItem(TenantId, "A", "kg", 5, 0, 50);
+        SetupItems(a);
+        var orderId = Guid.NewGuid();
+        var record = OrderConsumption.Applied(orderId, Guid.NewGuid(), [new(a.Id, 3)]);
+        _consumptions.Setup(c => c.GetByOrderIdAsync(orderId, It.IsAny<CancellationToken>())).ReturnsAsync(record);
+
+        var act = () => RestoreHandler.Handle(new RestoreOrderCommand(orderId, TenantId), default);
+
+        (await act.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be(DomainErrorCode.NotFound);
+        a.QuantityOnHand.Should().Be(5);
+        record.Status.Should().Be(OrderConsumptionStatus.Applied);
+        _consumptions.Verify(c => c.AddAsync(It.IsAny<OrderConsumption>(), It.IsAny<CancellationToken>()), Times.Never);
+        _uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Restore_does_not_touch_items_of_another_tenant()
+    {
+        var foreign = new StockItem(Guid.NewGuid(), "A", "kg", 5, 0, 50);
+        SetupItems(foreign);
+        var orderId = Guid.NewGuid();
+        _consumptions.Setup(c => c.GetByOrderIdAsync(orderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(OrderConsumption.Applied(orderId, TenantId, [new(foreign.Id, 3)]));
+
+        var act = () => RestoreHandler.Handle(new RestoreOrderCommand(orderId, TenantId), default);
+
+        (await act.Should().ThrowAsync<DomainException>()).Which.Code.Should().Be(DomainErrorCode.NotFound);
+        foreign.QuantityOnHand.Should().Be(5);
+        _uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
 }

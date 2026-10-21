@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Stock.Domain.Entities;
+using Stock.Domain.Errors;
 using Stock.Domain.Repositories;
 
 namespace Stock.Infrastructure.Persistence;
@@ -70,5 +72,19 @@ public sealed class OrderConsumptionRepository(StockDbContext db) : IOrderConsum
 
 public sealed class UnitOfWork(StockDbContext db) : IUnitOfWork
 {
-    public Task SaveChangesAsync(CancellationToken ct = default) => db.SaveChangesAsync(ct);
+    public async Task SaveChangesAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw DomainException.Conflict("The stock was modified concurrently, please retry.");
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            throw DomainException.Conflict("A concurrent request is already processing this resource, please retry.");
+        }
+    }
 }

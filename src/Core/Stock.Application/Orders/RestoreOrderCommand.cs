@@ -39,6 +39,11 @@ public sealed class RestoreOrderHandler(
             return new RestoreResultDto("CANCELLED_BEFORE_CONSUME");
         }
 
+        if (record.TenantId != cmd.TenantId)
+        {
+            throw DomainException.NotFound("Order consumption not found.");
+        }
+
         if (record.Status == OrderConsumptionStatus.Cancelled)
         {
             return new RestoreResultDto("ALREADY_RESTORED");
@@ -46,15 +51,22 @@ public sealed class RestoreOrderHandler(
 
         // Lines hold what was actually removed. Zero-quantity lines (item was empty)
         // have nothing to give back and RestoreFromOrder rejects them.
-        var lines = record.Cancel().Where(l => l.Quantity > 0).ToList();
+        var lines = record.Lines.Where(l => l.Quantity > 0).ToList();
 
         var items = (await stocks.GetByIdsAsync(lines.Select(l => l.StockItemId), ct))
+            .Where(i => i.TenantId == cmd.TenantId)
             .ToDictionary(i => i.Id);
 
+        // Resolve every item before mutating anything.
+        if (lines.Any(l => !items.ContainsKey(l.StockItemId)))
+        {
+            throw DomainException.NotFound("Stock item not found.");
+        }
+
+        record.Cancel();
         foreach (var line in lines)
         {
-            var item = items.GetValueOrDefault(line.StockItemId)
-                ?? throw DomainException.NotFound("Stock item not found.");
+            var item = items[line.StockItemId];
             await stocks.AddMovementAsync(item.RestoreFromOrder(line.Quantity, cmd.OrderId, Actor), ct);
         }
 

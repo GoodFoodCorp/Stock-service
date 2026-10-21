@@ -24,6 +24,8 @@ public sealed class StockDbContext(DbContextOptions<StockDbContext> options) : D
             e.Property(x => x.QuantityOnHand).HasPrecision(12, 3);
             e.Property(x => x.ThresholdMin).HasPrecision(12, 3);
             e.Property(x => x.ThresholdMax).HasPrecision(12, 3);
+            // Optimistic concurrency via PostgreSQL's xmin system column (no real column added).
+            e.Property<uint>("xmin").HasColumnType("xid").ValueGeneratedOnAddOrUpdate().IsConcurrencyToken();
             e.HasIndex(x => x.TenantId);
             e.HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
             e.HasMany(x => x.Movements)
