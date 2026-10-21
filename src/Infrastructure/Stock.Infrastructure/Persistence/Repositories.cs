@@ -10,6 +10,12 @@ public sealed class StockItemRepository(StockDbContext db) : IStockItemRepositor
         db.StockItems.Include(i => i.Movements)
             .FirstOrDefaultAsync(i => i.Id == id, ct);
 
+    public async Task<IReadOnlyList<StockItem>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default)
+    {
+        var idList = ids.Distinct().ToList();
+        return await db.StockItems.Where(i => idList.Contains(i.Id)).ToListAsync(ct);
+    }
+
     public async Task<IReadOnlyList<StockItem>> ListByTenantAsync(Guid tenantId, CancellationToken ct = default) =>
         await db.StockItems
             .Where(i => i.TenantId == tenantId)
@@ -51,6 +57,15 @@ public sealed class ReplenishmentRequestRepository(StockDbContext db) : IRepleni
 
     public async Task AddAsync(ReplenishmentRequest request, CancellationToken ct = default) =>
         await db.ReplenishmentRequests.AddAsync(request, ct);
+}
+
+public sealed class OrderConsumptionRepository(StockDbContext db) : IOrderConsumptionRepository
+{
+    public Task<OrderConsumption?> GetByOrderIdAsync(Guid orderId, CancellationToken ct = default) =>
+        db.OrderConsumptions.FirstOrDefaultAsync(c => c.OrderId == orderId, ct);
+
+    public async Task AddAsync(OrderConsumption consumption, CancellationToken ct = default) =>
+        await db.OrderConsumptions.AddAsync(consumption, ct);
 }
 
 public sealed class UnitOfWork(StockDbContext db) : IUnitOfWork

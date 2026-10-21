@@ -7,6 +7,8 @@ public interface IStockItemRepository
 {
     Task<StockItem?> GetByIdAsync(Guid id, CancellationToken ct = default);
 
+    Task<IReadOnlyList<StockItem>> GetByIdsAsync(IEnumerable<Guid> ids, CancellationToken ct = default);
+
     Task<IReadOnlyList<StockItem>> ListByTenantAsync(Guid tenantId, CancellationToken ct = default);
 
     Task AddAsync(StockItem item, CancellationToken ct = default);

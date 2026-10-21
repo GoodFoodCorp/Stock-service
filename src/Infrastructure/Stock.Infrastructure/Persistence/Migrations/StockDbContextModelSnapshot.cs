@@ -22,6 +22,29 @@ namespace Stock.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Stock.Domain.Entities.OrderConsumption", b =>
+                {
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("OrderId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("order_consumptions", (string)null);
+                });
+
             modelBuilder.Entity("Stock.Domain.Entities.ReplenishmentRequest", b =>
                 {
                     b.Property<Guid>("Id")
@@ -133,6 +156,10 @@ namespace Stock.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<decimal>("Shortfall")
+                        .HasPrecision(12, 3)
+                        .HasColumnType("numeric(12,3)");
+
                     b.Property<Guid>("StockItemId")
                         .HasColumnType("uuid");
 
@@ -146,6 +173,39 @@ namespace Stock.Infrastructure.Persistence.Migrations
                     b.HasIndex("StockItemId");
 
                     b.ToTable("stock_movements", (string)null);
+                });
+
+            modelBuilder.Entity("Stock.Domain.Entities.OrderConsumption", b =>
+                {
+                    b.OwnsMany("Stock.Domain.Entities.ConsumptionLine", "Lines", b1 =>
+                        {
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+
+                            b1.Property<Guid>("OrderId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<decimal>("Quantity")
+                                .HasPrecision(12, 3)
+                                .HasColumnType("numeric(12,3)");
+
+                            b1.Property<Guid>("StockItemId")
+                                .HasColumnType("uuid");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("OrderId");
+
+                            b1.ToTable("order_consumption_lines", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("OrderId");
+                        });
+
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("Stock.Domain.Entities.StockMovement", b =>
