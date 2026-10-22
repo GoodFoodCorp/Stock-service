@@ -15,6 +15,37 @@ public sealed class StockItem
 
     public StockItem(Guid tenantId, string name, string unit, decimal quantityOnHand, decimal thresholdMin, decimal thresholdMax)
     {
+        Validate(name, unit, quantityOnHand, thresholdMin, thresholdMax);
+
+        Id = Guid.NewGuid();
+        TenantId = tenantId;
+        Name = name.Trim();
+        Unit = unit.Trim();
+        QuantityOnHand = quantityOnHand;
+        ThresholdMin = thresholdMin;
+        ThresholdMax = thresholdMax;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>
+    /// Rewrites the descriptive fields and the on-hand quantity. Callers must
+    /// only change name, unit or quantity while nothing references the item
+    /// (no recipe, no history): quantity changes otherwise go through movements.
+    /// </summary>
+    public void Update(string name, string unit, decimal quantityOnHand, decimal thresholdMin, decimal thresholdMax)
+    {
+        Validate(name, unit, quantityOnHand, thresholdMin, thresholdMax);
+
+        Name = name.Trim();
+        Unit = unit.Trim();
+        QuantityOnHand = quantityOnHand;
+        ThresholdMin = thresholdMin;
+        ThresholdMax = thresholdMax;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    private static void Validate(string name, string unit, decimal quantityOnHand, decimal thresholdMin, decimal thresholdMax)
+    {
         if (string.IsNullOrWhiteSpace(name))
         {
             throw DomainException.Validation("Stock item name is required.");
@@ -34,15 +65,6 @@ public sealed class StockItem
         {
             throw DomainException.Validation("ThresholdMax must be greater than ThresholdMin.");
         }
-
-        Id = Guid.NewGuid();
-        TenantId = tenantId;
-        Name = name.Trim();
-        Unit = unit.Trim();
-        QuantityOnHand = quantityOnHand;
-        ThresholdMin = thresholdMin;
-        ThresholdMax = thresholdMax;
-        UpdatedAt = DateTimeOffset.UtcNow;
     }
 
     public Guid Id { get; private set; }

@@ -16,6 +16,9 @@ public sealed class StocksController(IMediator mediator) : ControllerBase
     public sealed record CreateStockItemBody(
         string Name, string Unit, decimal QuantityOnHand, decimal ThresholdMin, decimal ThresholdMax, Guid? TenantId);
 
+    public sealed record UpdateStockItemBody(
+        string Name, string Unit, decimal QuantityOnHand, decimal ThresholdMin, decimal ThresholdMax);
+
     public sealed record MovementBody(string Type, decimal Quantity, string Reason);
 
     [HttpGet]
@@ -34,6 +37,23 @@ public sealed class StocksController(IMediator mediator) : ControllerBase
             body.Name, body.Unit, body.QuantityOnHand, body.ThresholdMin, body.ThresholdMax, body.TenantId), ct);
         return CreatedAtAction(nameof(GetById), new { id = dto.Id }, dto);
     }
+
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateStockItemBody body, CancellationToken ct) =>
+        Ok(await mediator.Send(new UpdateStockItemCommand(
+            CurrentUserFactory.FromClaims(User), id,
+            body.Name, body.Unit, body.QuantityOnHand, body.ThresholdMin, body.ThresholdMax), ct));
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    {
+        await mediator.Send(new DeleteStockItemCommand(CurrentUserFactory.FromClaims(User), id), ct);
+        return NoContent();
+    }
+
+    [HttpGet("{id:guid}/usage")]
+    public async Task<IActionResult> Usage(Guid id, CancellationToken ct) =>
+        Ok(await mediator.Send(new GetStockUsageQuery(CurrentUserFactory.FromClaims(User), id), ct));
 
     [HttpPost("{id:guid}/movements")]
     public async Task<IActionResult> RegisterMovement(Guid id, [FromBody] MovementBody body, CancellationToken ct)

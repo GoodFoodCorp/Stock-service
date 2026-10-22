@@ -27,6 +27,14 @@ public sealed class StockItemRepository(StockDbContext db) : IStockItemRepositor
     public async Task AddAsync(StockItem item, CancellationToken ct = default) =>
         await db.StockItems.AddAsync(item, ct);
 
+    public void Remove(StockItem item) => db.StockItems.Remove(item);
+
+    public Task<bool> NameExistsAsync(Guid tenantId, string name, Guid excludingId, CancellationToken ct = default)
+    {
+        var trimmed = name.Trim();
+        return db.StockItems.AnyAsync(i => i.TenantId == tenantId && i.Id != excludingId && i.Name == trimmed, ct);
+    }
+
     public Task AddMovementAsync(StockMovement movement, CancellationToken ct = default)
     {
         // The movement instance is also reachable through the aggregate's
@@ -57,6 +65,9 @@ public sealed class ReplenishmentRequestRepository(StockDbContext db) : IRepleni
         db.ReplenishmentRequests.AnyAsync(
             r => r.StockItemId == stockItemId && r.Status == ReplenishmentStatus.Pending, ct);
 
+    public Task<bool> AnyForItemAsync(Guid stockItemId, CancellationToken ct = default) =>
+        db.ReplenishmentRequests.AnyAsync(r => r.StockItemId == stockItemId, ct);
+
     public async Task AddAsync(ReplenishmentRequest request, CancellationToken ct = default) =>
         await db.ReplenishmentRequests.AddAsync(request, ct);
 }
@@ -65,6 +76,9 @@ public sealed class OrderConsumptionRepository(StockDbContext db) : IOrderConsum
 {
     public Task<OrderConsumption?> GetByOrderIdAsync(Guid orderId, CancellationToken ct = default) =>
         db.OrderConsumptions.FirstOrDefaultAsync(c => c.OrderId == orderId, ct);
+
+    public Task<bool> AnyForStockItemAsync(Guid stockItemId, CancellationToken ct = default) =>
+        db.OrderConsumptions.AnyAsync(c => c.Lines.Any(l => l.StockItemId == stockItemId), ct);
 
     public async Task AddAsync(OrderConsumption consumption, CancellationToken ct = default) =>
         await db.OrderConsumptions.AddAsync(consumption, ct);

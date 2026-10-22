@@ -7,6 +7,7 @@ public enum DomainErrorCode
     Forbidden,
     Conflict,
     InvalidTransition,
+    Unavailable,
 }
 
 /// <summary>
@@ -24,6 +25,8 @@ public sealed class DomainException(DomainErrorCode code, string message) : Exce
     public static DomainException Forbidden(string message) => new(DomainErrorCode.Forbidden, message);
 
     public static DomainException Conflict(string message) => new(DomainErrorCode.Conflict, message);
+
+    public static DomainException Unavailable(string message) => new(DomainErrorCode.Unavailable, message);
 
     public static DomainException InvalidTransition(string from, string to) =>
         new(DomainErrorCode.InvalidTransition, $"Cannot transition from {from} to {to}.");

@@ -13,5 +13,10 @@ public interface IStockItemRepository
 
     Task AddAsync(StockItem item, CancellationToken ct = default);
 
+    void Remove(StockItem item);
+
+    /// <summary>True when another item of the tenant already has this name.</summary>
+    Task<bool> NameExistsAsync(Guid tenantId, string name, Guid excludingId, CancellationToken ct = default);
+
     Task AddMovementAsync(StockMovement movement, CancellationToken ct = default);
 }

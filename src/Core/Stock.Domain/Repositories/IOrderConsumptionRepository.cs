@@ -7,5 +7,7 @@ public interface IOrderConsumptionRepository
 {
     Task<OrderConsumption?> GetByOrderIdAsync(Guid orderId, CancellationToken ct = default);
 
+    Task<bool> AnyForStockItemAsync(Guid stockItemId, CancellationToken ct = default);
+
     Task AddAsync(OrderConsumption consumption, CancellationToken ct = default);
 }

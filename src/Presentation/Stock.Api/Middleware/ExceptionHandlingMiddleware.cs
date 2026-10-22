@@ -21,6 +21,7 @@ public sealed class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Ex
                 DomainErrorCode.Forbidden => StatusCodes.Status403Forbidden,
                 DomainErrorCode.Conflict => StatusCodes.Status409Conflict,
                 DomainErrorCode.InvalidTransition => StatusCodes.Status409Conflict,
+                DomainErrorCode.Unavailable => StatusCodes.Status503ServiceUnavailable,
                 _ => StatusCodes.Status500InternalServerError,
             };
             context.Response.StatusCode = status;

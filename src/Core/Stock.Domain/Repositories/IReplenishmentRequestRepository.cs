@@ -13,5 +13,7 @@ public interface IReplenishmentRequestRepository
 
     Task<bool> HasPendingForItemAsync(Guid stockItemId, CancellationToken ct = default);
 
+    Task<bool> AnyForItemAsync(Guid stockItemId, CancellationToken ct = default);
+
     Task AddAsync(ReplenishmentRequest request, CancellationToken ct = default);
 }

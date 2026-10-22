@@ -9,6 +9,7 @@ services:
       - .env
     environment:
       SERVICE_API_KEY: ${SERVICE_API_KEY:?SERVICE_API_KEY is required}
+      MENU_SERVICE_URL: http://menu-service:8085
       ConnectionStrings__StockDb: Host=stock-db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
     depends_on:
       stock-db:
